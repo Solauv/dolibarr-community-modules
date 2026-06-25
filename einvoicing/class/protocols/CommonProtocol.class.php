@@ -118,7 +118,7 @@ trait CommonProtocol
 		}
 	}
 
-	/************************************************
+	/**
 	 * Find paymentMean number
 	 *
 	 * @param  CommonInvoice 	$invoice 			object name we look for
@@ -221,13 +221,8 @@ trait CommonProtocol
 				}
 				break;
 			default:
-				if ($global == 1 || $global == 2) {
-					$retour = "0060";	// DUNS
-					// $retour = "EM";	// Emails
-				} else {
-					$retour = "0060";	// DUNS
-					// $retour = "EM";	// Emails
-				}
+				$retour = "0060";	// DUNS
+				// $retour = "EM";	// Emails
 		}
 		return $retour;
 	}
@@ -1323,7 +1318,7 @@ trait CommonProtocol
 
 				if (empty($seller->tva_assuj)) {
 					// Can be $categoryVAT = E (VAT exempted) or AE (Autoliquidation)
-					if (1 == 2) {	// Autoliquidation (the VAT is declared by the customer that pay it directly to the government). TODO Not implemented.
+					if (1 == 2) {	// Autoliquidation (the VAT is declared by the customer that pay it directly to the government). TODO Not implemented. @phan-suppress-current-line PhanPluginBothLiteralsBinaryOp
 						// Note: the option ACCOUNTING_FORCE_ENABLE_VAT_REVERSE_CHARGE is for purchase invoices only and is used to dispatch vat differently in accounting..
 						$categoryVAT = 'AE';	// Autoliquidation
 						$exemptionReasonCode = 'VATEX-'.($seller->country_code == 'FR' ? 'FR' : 'EU').'-AE';	// VATEX-EU-AE or VATEX-FR-AE
@@ -1339,7 +1334,7 @@ trait CommonProtocol
 							$exemptionReason = getDolGlobalString('MAIN_INFO_SOCIETE_VAT_EXEMPTION_REASON', 'Tax exempted - TVA en franchise');
 						}
 						if (empty($exemptionReasonCode)) {
-							if ((float) DOl_VERSION < 24.0) {
+							if ((float) DOL_VERSION < 24.0) {
 								throw new Exception('MISSINGSETUP: Your organization is configured to not use VAT. In this case, you must enter into the constant MAIN_INFO_SOCIETE_VAT_EXEMPTION_CODE the reason code of exemption (VATEX-FR-CGI261-1, VATEX-FR-CGI261-4, VATEX-EU-79C.');
 							} else {
 								throw new Exception('MISSINGSETUP: Your organization is configured to not use VAT. In this case, you must enter into the reason code of exemption in the setup of your organization (VATEX-FR-CGI261-1, VATEX-FR-CGI261-4, VATEX-EU-79C.');
@@ -1450,7 +1445,7 @@ trait CommonProtocol
 	}
 
 
-	/************************************************
+	/**
 	 *    Check line type from external module ?
 	 *
 	 * @param  object $line       line we work on
@@ -1627,11 +1622,17 @@ trait CommonProtocol
 										$i++;
 									}
 								}
+								'@phan-var-force array<string,float> $amount_ht';
+								'@phan-var-force array<string,float> $amount_tva';
+								'@phan-var-force array<string,float> $amount_ttc';
+								'@phan-var-force array<string,float> $multicurrency_amount_ht';
+								'@phan-var-force array<string,float> $multicurrency_amount_tva';
+								'@phan-var-force array<string,float> $multicurrency_amount_ttc';
 
 								$discount = new DiscountAbsolute($db);
 								$discount->description = '(DEPOSIT)';
 								$discount->discount_type = 1; // Supplier discount
-								$discount->fk_soc = $linkedObject->socid;
+								$discount->fk_soc = $linkedObject->socid;  // @phan-suppress-current-line PhanDeprecatedProperty
 								$discount->socid = $linkedObject->socid;
 								$discount->fk_invoice_supplier_source = $linkedObject->id;
 								foreach ($amount_ht as $tva_tx => $xxx) {
@@ -1680,6 +1681,7 @@ trait CommonProtocol
 			}
 
 			$productId = 0;
+			$return_messages = array();
 			if (!$is_deposit_line && !$freeLines) {
 				// Sync or create product
 				$res = $this->_findOrCreateProductFromEinvoiceLine($parsedLine, $flowId);
@@ -1698,7 +1700,7 @@ trait CommonProtocol
 						];
 					}
 				} elseif ($targetFkProduct > 0) {
-						$productId = $targetFkProduct;
+					$productId = $targetFkProduct;
 				} else {
 					$productId = $res['res'];
 				}
@@ -1707,6 +1709,7 @@ trait CommonProtocol
 			// Add line to invoice
 			$line = new SupplierInvoiceLine($db);
 			//$line->desc = $prodname . (!empty($proddesc) ? "\n" . $proddesc : '');
+			$remise_already_used_line_level_ids = array();
 			if (!empty($productId)) {
 				$line->fk_product = $productId;
 			}
@@ -1719,7 +1722,7 @@ trait CommonProtocol
 				$remise_already_used_line_level_ids[] = $fk_remise;
 			}
 			if ($freeLines) {
-				$line->description = $parsedLine['prodname'];
+				$line->description = $parsedLine['prodname'];  // @phan-suppress-current-line PhanDeprecatedProperty
 			}
 			$line->qty = $parsedLine['billedquantity'];
 			$line->subprice = $parsedLine['netpriceamount'];
@@ -1748,7 +1751,7 @@ trait CommonProtocol
 	/**
 	 * Create/insert supplier invoice lines in DB using $lines property of the supplier invoice object
 	 * @param FactureFournisseur $supplierInvoice The supplier invoice to add lines
-	 * @return bool
+	 * @return bool  True if success
 	 */
 	public function createSupplierInvoiceLinesIntoDatabase(FactureFournisseur $supplierInvoice): bool
 	{
@@ -1762,7 +1765,7 @@ trait CommonProtocol
 
 				$res = $supplierInvoice->updateline(
 					$idligne,
-					$supplierInvoice->lines[$i]->desc ? $supplierInvoice->lines[$i]->desc : $supplierInvoice->lines[$i]->description,
+					$supplierInvoice->lines[$i]->desc ? $supplierInvoice->lines[$i]->desc : $supplierInvoice->lines[$i]->description,  // @phan-suppress-current-line PhanDeprecatedProperty
 					$supplierInvoice->lines[$i]->subprice,
 					$supplierInvoice->lines[$i]->tva_tx.($supplierInvoice->lines[$i]->vat_src_code ? ' ('.$supplierInvoice->lines[$i]->vat_src_code.')' : ''),
 					$supplierInvoice->lines[$i]->localtax1_tx,
@@ -1799,7 +1802,7 @@ trait CommonProtocol
 	 * @param  string $rawContent Raw XML content
 	 * @return array<string,mixed>
 	 */
-	public function parseInvoiceHeader(string $rawContent)
+	public function parseInvoiceHeader(string $rawContent)  // @phan-suppress-current-line PhanPluginMoreSpecificActualReturnType
 	{
 		list(, $xpath) = $this->initXPath($rawContent);
 
@@ -1832,12 +1835,14 @@ trait CommonProtocol
 
 		// Type normalisation
 		foreach (['documentdate', 'documentDeliveryDate', 'invoicingPeriodStart', 'invoicingPeriodEnd', 'paymentDueDate'] as $f) {
-			if (isset($data[$f]))
+			if (isset($data[$f])) {
 				$data[$f] = $this->normDate($data[$f]);
+			}
 		}
 		foreach (['grandTotalAmount', 'duePayableAmount', 'lineTotalAmount', 'chargeTotalAmount', 'allowanceTotalAmount', 'taxBasisTotalAmount', 'taxTotalAmount', 'roundingAmount', 'totalPrepaidAmount'] as $f) {
-			if (isset($data[$f]))
+			if (isset($data[$f])) {
 				$data[$f] = $this->toFloat($data[$f]);
+			}
 		}
 
 		return $data;
@@ -1849,7 +1854,7 @@ trait CommonProtocol
 	 * @param  string $rawContent Raw XML content
 	 * @return array<int,array<string,mixed>>
 	 */
-	public function parseInvoiceLines(string $rawContent): array
+	public function parseInvoiceLines(string $rawContent): array  // @phan-suppress-current-line PhanPluginMoreSpecificActualReturnType
 	{
 		list(, $xpath) = $this->initXPath($rawContent);
 
@@ -1896,12 +1901,14 @@ trait CommonProtocol
 
 			// Type normalisation
 			foreach (['linePeriodStart', 'linePeriodEnd'] as $f) {
-				if (isset($line[$f]))
+				if (isset($line[$f])) {
 					$line[$f] = $this->normDate($line[$f]);
+				}
 			}
 			foreach (['grosspriceamount', 'grosspricebasisquantity', 'netpriceamount', 'netpricebasisquantity', 'billedquantity', 'chargeFreeQuantity', 'packageQuantity', 'lineTotalAmount', 'totalAllowanceChargeAmount', 'rateApplicablePercent', 'calculatedAmount'] as $f) {
-				if (isset($line[$f]))
+				if (isset($line[$f])) {
 					$line[$f] = $this->toFloat($line[$f]);
+				}
 			}
 			$line['isDepositLine'] = (bool) ($line['isDepositLine'] ?? false);
 

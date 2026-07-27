@@ -13,34 +13,7 @@ const einvoicingSupplierInvoice = {
      * Function to init einvoicingSupplierInvoice object (run when DOM content is loaded)
      */
     init: function() {
-        $('#einvoicing_import_lines_button').on('click', einvoicingSupplierInvoice.handleImportButton);
         $('input[name="extraction_type"]').on('change', einvoicingSupplierInvoice.handleExtractionTypeChange);
-    },
-
-    /**
-     * Handle click on re-import button (present on supplier invoice card depending the supplier invoice status and if it is an e-invoice or not)
-     * - will open a modal containing a form allowing the user to choose the type of reimport he wants to perform
-     * @param Event evt
-     */
-    handleImportButton: function(evt) {
-        evt.preventDefault();
-
-        $( "#einvoicing-dialog-import-lines-form" ).dialog({
-            resizable: false,
-            height: "auto",
-            width: 550,
-            modal: true,
-            position: { my: "center top", at: "center top+100", of: window },
-            buttons: {
-                [einvoicingTranslations.confirm_button_cancel]: function() {
-                    $(this).dialog("close");
-                },
-                [einvoicingTranslations.confirm_button_validate]: function(evt) {
-                    $('#einvoicing-import-lines-form').trigger('submit');
-                },
-            },
-
-        });
     },
 
     /**

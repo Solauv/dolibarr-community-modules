@@ -418,7 +418,7 @@ class ActionsEInvoicing extends CommonHookActions  // @phan-suppress-current-lin
 					if ($object->status == FactureFournisseur::STATUS_DRAFT &&
 						$user->hasRight('einvoicing', 'write') &&
 						!SupplierInvoiceHelper::isSupplierImportInvoiceLinesAuto($object->socid)) {
-						print dolGetButtonAction($langs->trans('EinvoiceImportLines'), '', 'default', dol_buildpath('/fourn/facture/card.php?id=' . $object->id . '&action=reimportLines&token=' . newToken(), 1), 'einvoicing_import_lines_button', true);
+						print dolGetButtonAction($langs->trans('EinvoiceImportLines'), '', 'default', dol_buildpath('/fourn/facture/card.php?id=' . $object->id . '&action=confirm_reimportlines&token=' . newToken(), 1), 'einvoicing_reimport_lines_button', true);
 					}
 
 					if (!empty($url_button)) {
@@ -448,6 +448,7 @@ class ActionsEInvoicing extends CommonHookActions  // @phan-suppress-current-lin
 		global $db, $form, $langs, $user;
 
 		if (in_array('invoicesuppliercard', $hookmanager->contextarray) &&
+			$action == 'confirm_reimportlines' &&
 			!SupplierInvoiceHelper::isSupplierImportInvoiceLinesAuto($object->socid) &&
 			$object->status == FactureFournisseur::STATUS_DRAFT &&
 			$user->hasRight('einvoicing', 'write')) {
@@ -475,6 +476,7 @@ class ActionsEInvoicing extends CommonHookActions  // @phan-suppress-current-lin
 			}
 
 			// Generate form field with selectarray
+			$form = new Form($db);
 			$selectProduct = $form->selectarray(
 				'target_fk_product',	// HTML name of the field
 				$select_products_array,	// Array of products [id => display_text]
@@ -491,42 +493,57 @@ class ActionsEInvoicing extends CommonHookActions  // @phan-suppress-current-lin
 			);
 
 			// Modal allowing to reimport supplier invoice lines
-			print '<div id="einvoicing-dialog-import-lines-form" title="'.$langs->trans('EinvoiceImportLines').'" style="display: none;">';
-			print '<form id="einvoicing-import-lines-form" method="post" action="'.dol_buildpath('fourn/facture/card.php', 1).'?facid='.$object->id.'&action=reimportLines&token='.newtoken().'">';
-			print 	'<p style="color: #e11717; font-weight: bold;">! '.$langs->trans('SupplierInvoiceExtractLinesWarning').'</p>';
-			print 	'<div style="display: flex; flex-direction: column; margin-left: 2rem; gap: 0.2rem;">
+			$targetProductChoice = '<div id="extraction-target-product-choice" style="display: none; margin-top: 0.5rem; margin-left: 2rem;">';
+			if ($categoryId > 0) {
+				$targetProductChoice .= $selectProduct;
+			} else {
+				$targetProductChoice .= img_picto('', 'warning') . ' ' . $langs->trans('SupplierInvoiceLinesImportPleaseSetDefaultCategoryInSettings') . '<br>';
+			}
+			$targetProductChoice .= '</div>';
+
+			$formquestion = array();
+
+			$formquestion[] = array(
+				'type'  => 'other',
+				'name'  => 'extraction_type',
+				'value' =>
+					'<p style="color: #e11717; font-weight: bold;">! '.$langs->trans('SupplierInvoiceExtractLinesWarning').'</p>
+					<div style="display: flex; flex-direction: column; margin-left: 2rem; gap: 0.2rem;">
 						<label for="extraction-all-prices"><input type="radio" name="extraction_type" id="extraction-all-prices" checked="checked" value="1">'.$langs->trans('ExtractAllLines').'</label>
 						<label for="extraction-to-free-line"><input type="radio" name="extraction_type" id="extraction-to-free-line" value="2">'.$langs->trans('ExtractToFreeLine').'</label>
 						<label for="extraction-to-product"><input type="radio" name="extraction_type" id="extraction-to-product" value="3">'.$langs->trans('ExtractToAProduct') . (isset($category) ? ' ('.$langs->trans('SupplierInvoiceLinesImportProductsFromCategory'). ' <strong>' . $category->label .'</strong>)' : '').'</label>
-					</div>';
-			print   '<div id="extraction-target-product-choice" style="display: none; margin-top: 0.5rem; margin-left: 2rem;">';
-			if ($categoryId > 0) {
-				print $selectProduct;
-			} else {
-				print img_picto('', 'warning') . ' ' . $langs->trans('SupplierInvoiceLinesImportPleaseSetDefaultCategoryInSettings') . '<br>';
-			}
-			print 	'</div>';
-			print '</form>';
-			print '</div>';
+					</div>'
+
+			);
+
+			$formquestion[] = array(
+				'type'  => 'other',
+				'name'  => 'target_fk_product',
+				'value' =>
+					$targetProductChoice
+
+			);
+
+			print $form->formconfirm(
+				dol_buildpath('fourn/facture/card.php', 1).'?facid='.$object->id,
+				$langs->trans('EinvoiceImportLines'),
+				'',
+				'reimportLines',
+				$formquestion,
+				'',
+				1,
+				'350',
+				'500',
+				0,
+				$langs->trans('Validate'),
+				$langs->trans('Cancel'),
+			);
 
 			// ---------------------------------------------------------------
-			// JS to manage modal & form submit
+			// JS to manage modal interactions
 			// ---------------------------------------------------------------
 
-			// Translations
-			$supplierPricesTranslations = [
-				'confirm_button_validate' => 'Validate',
-				'confirm_button_cancel' => 'Cancel',
-			];
-			$supplierPricesTranslations = array_map(function ($labelId) use ($langs) {
-				return html_entity_decode($langs->trans($labelId));
-			}, $supplierPricesTranslations);
-
-			print '<script>';
-			print "const einvoicingTranslations = JSON.parse('".addslashes(json_encode($supplierPricesTranslations))."');";
-			print '</script>';
-
-			print '<script src="'. dol_buildpath('einvoicing/js/supplier_invoice.js?v=20260707', 1) . '"></script>';
+			print '<script src="'. dol_buildpath('einvoicing/js/supplier_invoice.js?v=20260727', 1) . '"></script>';
 		}
 
 		return 0;

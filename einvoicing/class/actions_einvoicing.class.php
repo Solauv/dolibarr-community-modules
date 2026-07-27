@@ -416,7 +416,7 @@ class ActionsEInvoicing extends CommonHookActions  // @phan-suppress-current-lin
 					}
 
 					if ($object->status == FactureFournisseur::STATUS_DRAFT &&
-						$user->hasRight('facture', 'write') &&
+						$user->hasRight('einvoicing', 'write') &&
 						!SupplierInvoiceHelper::isSupplierImportInvoiceLinesAuto($object->socid)) {
 						print dolGetButtonAction($langs->trans('EinvoiceImportLines'), '', 'default', dol_buildpath('/fourn/facture/card.php?id=' . $object->id . '&action=reimportLines&token=' . newToken(), 1), 'einvoicing_import_lines_button', true);
 					}
@@ -450,7 +450,7 @@ class ActionsEInvoicing extends CommonHookActions  // @phan-suppress-current-lin
 		if (in_array('invoicesuppliercard', $hookmanager->contextarray) &&
 			!SupplierInvoiceHelper::isSupplierImportInvoiceLinesAuto($object->socid) &&
 			$object->status == FactureFournisseur::STATUS_DRAFT &&
-			$user->hasRight('facture', 'write')) {
+			$user->hasRight('einvoicing', 'write')) {
 			// ---------------------------------------------------------------
 			// Modal reimport lines
 			// ---------------------------------------------------------------

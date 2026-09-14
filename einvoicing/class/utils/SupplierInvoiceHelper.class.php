@@ -436,6 +436,61 @@ class SupplierInvoiceHelper
 	}
 
 	/**
+	 * Indicates if the type of import for supplier invoice lines is auto or not :
+	 * - first try to get import type from societe
+	 * - if not set, then use default module parameter
+	 * @param int $socId The soc id to test
+	 * @return bool
+	 */
+	public static function isSupplierImportInvoiceLinesAuto($socId)
+	{
+		global $db;
+
+		if ($socId > 0) {
+			$soc = new Societe($db);
+
+			$einvoicing = new EInvoicing($db);
+			$importType = $einvoicing->getExtraFieldValue($socId, $soc->element, 'einvoicing_supplier_invoice_lines_import_type');
+
+			if (isset($importType) && $importType != Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_USE_GLOBAL_CONFIG) {
+				return $importType == Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_AUTO;
+			} else {
+				return getDolGlobalInt('EINVOICING_SUPPLIER_INVOICE_LINES_IMPORT_TYPE') == Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_AUTO;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Convert parsed line (extracted from e-invoice) to an array containing
+	 * one line by VAT rate (if there are 5 lines but only 2 differents VAT rate in $parsedLines array,
+	 * the output array will contain only 2 lines)
+	 *
+	 * @param array $parsedLines
+	 * @return array
+	 */
+	public static function reduceLinesToOneLineByVatRate(array $parsedLines)
+	{
+		$reducedLinesByVatRate = [];
+
+		foreach ($parsedLines as $line) {
+			$vatRate = (string) $line['rateApplicablePercent'];
+			if (!isset($outputParsedLines[$vatRate])) {
+				$reducedLinesByVatRate[$vatRate] = $line;
+				$reducedLinesByVatRate[$vatRate]['billedquantity'] = 1;
+				$reducedLinesByVatRate[$vatRate]['netpriceamount'] = 0;
+				$reducedLinesByVatRate[$vatRate]['lineTotalAmount'] = 0;
+				$reducedLinesByVatRate[$vatRate]['calculatedAmount'] = 0;
+				$reducedLinesByVatRate[$vatRate]['rateApplicablePercent'] = $vatRate;
+			}
+			$reducedLinesByVatRate[$vatRate]['netpriceamount'] += $line['netpriceamount'] * $line['billedquantity'];
+			$reducedLinesByVatRate[$vatRate]['calculatedAmount'] += $line['netpriceamount'] * $line['billedquantity'];
+		}
+
+		return $reducedLinesByVatRate;
+	}
+
+	/**
 	 * Abandon a Dolibarr supplier invoice because its refusal has been confirmed by the PDP/PA:
 	 * validates it if still a draft, then cancels it with a dedicated close code, excluded from the
 	 * accountancy transfer screen (see ActionsEinvoicing::printFieldListWhere()). A paid invoice is

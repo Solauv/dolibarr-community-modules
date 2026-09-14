@@ -34,6 +34,7 @@ if ((float) DOL_VERSION < 19) {
 }
 require_once __DIR__ . "/einvoicing.class.php";
 dol_include_once('/einvoicing/class/providers/PDPProviderManager.class.php');
+dol_include_once('/einvoicing/class/utils/SupplierInvoiceHelper.class.php');
 
 
 /**
@@ -950,6 +951,87 @@ class ActionsEInvoicing extends CommonHookActions  // @phan-suppress-current-lin
 					}
 					return 0;
 				}
+			}
+
+			if ($action == 'reimportLines' &&
+				getDolGlobalString("EINVOICING_SUPPLIER_INVOICE_LINES_MANUAL_IMPORT_AVAILABLE") &&
+				$permissiontoedit &&
+				$object->status == FactureFournisseur::STATUS_DRAFT &&
+				!SupplierInvoiceHelper::isSupplierImportInvoiceLinesAuto($object->socid)) {
+				$xmlData = SupplierInvoiceHelper::getXmlData($object->id, true);
+
+				if ($xmlData === null || $xmlData === '') {
+					setEventMessage($langs->trans('EinvoiceCantReimportLines'), 'errors');
+					setEventMessage($langs->trans('EinvoiceXmlDataNotFound'), 'errors');
+					$db->rollback();
+					return -1;
+				}
+
+				dol_include_once('einvoicing/class/protocols/ProtocolManager.class.php');
+
+				// Build the $exchangeProtocol factory for the format of supplier invoice
+				$resProtocol = ProtocolManager::getProtocolFromContent($xmlData);
+				if ($resProtocol['success']) {
+					$exchangeProtocol = $resProtocol['protocol_object'];
+				} else {
+					setEventMessage($langs->trans('EinvoiceCantReimportLines'), 'errors');
+					if ($resProtocol['error_code'] === ProtocolManager::EXCEPTION_UNSUPPORTED_FORMAT) {
+						setEventMessage($langs->trans('EinvoiceFormatNotSupported', $resProtocol['detected_protocol_name'] ?? ''), 'errors');
+					} elseif ($resProtocol['error_code'] === ProtocolManager::EXCEPTION_UNKNOWN_FORMAT) {
+						setEventMessage($langs->trans('EinvoiceFailedToDetectXmlFormat'), 'errors');
+					}
+					$db->rollback();
+					return -1;
+				}
+
+				$parsedLines  = $exchangeProtocol->parseInvoiceLines($xmlData);
+
+				// Delete existing lines
+				foreach ($object->lines as $i => $val) {
+					$object->lines[$i]->delete($user);
+				}
+				$object->lines = [];
+
+				// Detect/manage reimport type
+				$extractionType = GETPOST('extraction_type');
+				$targetFkProduct = GETPOST('target_fk_product');
+				$createInvoiceLinesParams = [];
+				if ($extractionType == 1) {
+					// mode automatic
+				} elseif ($extractionType == 2) {
+					// mode import to free lines
+					$createInvoiceLinesParams['free_lines'] = true;
+				} elseif ($extractionType == 3) {
+					// mode import to target fk product (will create one line by VAT rate)
+					$product = new Product($db);
+					$resproduct = $product->fetch((int) $targetFkProduct);
+
+					if ($resproduct > 0) {
+						$parsedLines = SupplierInvoiceHelper::reduceLinesToOneLineByVatRate($parsedLines);
+
+						$createInvoiceLinesParams['target_fk_product'] = $targetFkProduct;
+					} else {
+						setEventMessage($langs->trans('EinvoiceReimportLinesMissingTargetFkProduct'), 'errors');
+						$db->rollback();
+						return -1;
+					}
+				}
+
+				// Add lines to supplier invoice from eInvoice XML data
+				$remise_already_used_line_level_ids = [];
+				$supplierPriceEntries = [];
+				$return_messages = [];
+				$res = $exchangeProtocol->createSupplierInvoiceLinesFromSource($object, $parsedLines, $remise_already_used_line_level_ids, $supplierPriceEntries, $return_messages, '', $createInvoiceLinesParams);
+				if ($res['res'] < 0) {
+					$db->rollback();
+					$this->error = $langs->trans('EinvoiceReimportLinesError') . $res['message'];
+					return $res['res'];
+				}
+
+				$db->commit();
+
+				header('Location: '.dol_buildpath('/fourn/facture/card.php?facid='.$object->id, 1));
+				exit();
 			}
 		}
 

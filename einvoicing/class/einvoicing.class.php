@@ -2545,6 +2545,83 @@ class EInvoicing
 			$resprints .= '</tr>';
 		}
 
+		// Import type for supplier invoice lines
+		if (getDolGlobalString("EINVOICING_SUPPLIER_INVOICE_LINES_MANUAL_IMPORT_AVAILABLE")) {
+			$resprints .= '<tr class="treinvoicing_collapseseparator '.($expand_display ? '' : 'hidden').'">';
+			$resprints .= '<td>';
+			$resprints .= '<table width="100%" class="nobordernopadding"><tbody><tr>';
+			$resprints .= '<td>' . $form->textwithpicto($langs->trans("SupplierInvoiceLinesImportType"), $langs->trans("SupplierInvoiceLinesImportTypeHelp")) . '</td>';
+			$resprints .= '<td>'. ($mode != 'edit' ? ('<a class="editfielda" href="'.$_SERVER["PHP_SELF"].'?action=editsupplierinvoicelinesimporttype&token='.newToken().'&socid='.$object->id.'">' . img_picto('', 'pencil-alt', $moreatt = 'style="color: #444; float: right;"', $pictoisfullpath = 0, $srconly = 0, $notitle = 0, $alt = '', $morecss = 'editfielda') . '</a>') : '') . '</td>';
+			$resprints .= '</tr></tbody></table>';
+			$resprints .= '</td>';
+			$resprints .= '<td'.(empty($parameters['colspanvalue']) ? '' : ' colspan="'.(((int) $parameters['colspanvalue']) - 1).'"').'>';
+
+			$importTypeCurrentValue = $this->getExtraFieldValue($object->id, $object->element, 'einvoicing_supplier_invoice_lines_import_type');
+			if (is_null($importTypeCurrentValue)) {
+				$importTypeCurrentValue = Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_USE_GLOBAL_CONFIG;
+			}
+
+			if ($mode == 'edit' || $mode == 'editsupplierinvoicelinesimporttype') {
+				$options = array(
+					Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_AUTO => 'SupplierInvoiceLinesImportType'.Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_AUTO,
+					Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_MANUAL => 'SupplierInvoiceLinesImportType'.Einvoicing::SUPPLIER_INVOICE_LINES_IMPORT_MANUAL,
+				);
+
+				$resprints .= $form->selectarray(
+					'einvoicing_supplier_invoice_lines_import_type',
+					$options,
+					$importTypeCurrentValue,
+					1,
+					0,
+					0,
+					'',
+					1,
+					0,
+					0,
+					'',
+					'minwidth100',
+					1,
+					'',
+					0,
+					0
+				);
+
+				if ($mode == 'editsupplierinvoicelinesimporttype') {
+					$resprints .= '<input id="button_supplierinvoicelinesimporttype" type="submit" class="button valignmiddle smallpaddingimp nomargintop nomarginbottom" value="'.$langs->trans('Modify').'">';
+				}
+			} else {
+				$resprints .= ($importTypeCurrentValue > 0 ? $langs->trans('SupplierInvoiceLinesImportType' . $importTypeCurrentValue) : '');
+			}
+
+			$modifyButtonUrl = $_SERVER['PHP_SELF'] . '?action=set_supplierinvoicelinesimporttype&socid='.$object->id.'&token='.newToken();
+			$resprints .= '<script>
+
+				function submitUpdateSupplierInvoiceLinesImportType() {
+					var f = document.createElement("form");
+					f.method = "post";
+					f.action = "' . $modifyButtonUrl . '";
+					var fields = {
+						token: "' . dol_escape_js(newToken()) . '",
+						action: "set_supplierinvoicelinesimporttype",
+						socid: '.$object->id.',
+						einvoicing_supplier_invoice_lines_import_type: $("#einvoicing_supplier_invoice_lines_import_type").val()
+					};
+					for (var k in fields) {
+						var i = document.createElement("input");
+						i.type = "hidden"; i.name = k; i.value = fields[k];
+						f.appendChild(i);
+					}
+					document.body.appendChild(f);
+					f.submit();
+				}
+
+				$("#button_supplierinvoicelinesimporttype").on("click", submitUpdateSupplierInvoiceLinesImportType);
+			</script>';
+
+			$resprints .= '</td>';
+			$resprints .= '</tr>';
+		}
+
 		return $resprints;
 	}
 
